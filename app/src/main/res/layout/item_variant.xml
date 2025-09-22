@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+This layout defines a single item in the horizontal list of variants.
+It's a small card with the variant's image and name.
+-->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="120dp"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardElevation="2dp"
+    app:cardCornerRadius="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <ImageView
+            android:id="@+id/ivVariantImage"
+            android:layout_width="match_parent"
+            android:layout_height="100dp"
+            android:scaleType="centerCrop"
+            android:background="#EAEAEA"/>
+
+        <TextView
+            android:id="@+id/tvVariantName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Variant Name"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:gravity="center"/>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>
