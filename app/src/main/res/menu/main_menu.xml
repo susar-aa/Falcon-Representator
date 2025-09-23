@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_start_day"
+        android:title="Start Day"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_end_day"
+        android:title="End Day"
+        app:showAsAction="ifRoom"
+        android:visible="false"/>
+
+    <item
+        android:id="@+id/action_view_bills"
+        android:title="View Today's Bills"
+        app:showAsAction="never"
+        android:visible="false"/>
+
+    <item
+        android:id="@+id/action_upload_pending"
+        android:title="Upload Pending Bills"
+        app:showAsAction="never"
+        android:visible="false"/>
+
+</menu>
+

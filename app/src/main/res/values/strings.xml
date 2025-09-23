@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Falcon Representator</string>
+    <string name="product_image">Product Image</string>
+    <string name="channel_name">Sync Service</string>
+    <string name="channel_description">Notifications for background data synchronization.</string>
+
+</resources>
