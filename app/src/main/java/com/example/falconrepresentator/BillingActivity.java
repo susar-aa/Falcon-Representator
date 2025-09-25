@@ -172,7 +172,10 @@ public class BillingActivity extends AppCompatActivity implements
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
         executor.execute(() -> {
-            customerList = dbHelper.getAllCustomersForSpinner();
+            // CHANGE THIS LINE
+            customerList = dbHelper.getAllCustomersForBilling(); // Use the new combined method
+
+            // The rest of the method stays the same
             handler.post(() -> {
                 customerAdapter.updateList(customerList);
                 if (customerToSelectId != -1) {
@@ -186,6 +189,7 @@ public class BillingActivity extends AppCompatActivity implements
             });
         });
     }
+
 
     @Override
     public void onCustomerSelected(OrderManager.Customer customer) {

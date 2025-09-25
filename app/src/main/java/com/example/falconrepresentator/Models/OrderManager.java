@@ -3,7 +3,6 @@ package com.example.falconrepresentator.Models;
 import androidx.annotation.NonNull;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -77,17 +76,17 @@ public class OrderManager {
     // --- Discount Management ---
     public double getBillDiscountPercentage() {
         return billDiscountPercentage;
-    } // FIXED: Added missing closing brace
+    }
 
-    public void setBillDiscountPercentage(double discount) {
-        this.billDiscountPercentage = discount;
+    public void setBillDiscountPercentage(double discountPercentage) {
+        this.billDiscountPercentage = discountPercentage;
         notifyListeners();
     }
 
 
     // --- Calculation Methods ---
     public List<OrderItem> getCurrentBillItems() {
-        return Collections.unmodifiableList(currentBillItems);
+        return currentBillItems;
     }
 
     public boolean isBillEmpty() {
@@ -139,7 +138,7 @@ public class OrderManager {
         private final ProductVariant variant;
         private int quantity;
         private Double customPrice; // Can be null
-        private double discountPercentage; // Item-specific discount percentage
+        private double discountPercentage; // Per-item discount percentage
 
         public OrderItem(ProductVariant variant, int quantity) {
             this.variant = variant;
@@ -170,19 +169,6 @@ public class OrderManager {
             double discountAmount = subtotal * (discountPercentage / 100.0);
             return subtotal - discountAmount;
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            OrderItem orderItem = (OrderItem) o;
-            return variant.equals(orderItem.variant);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(variant);
-        }
     }
 
     public static class Customer {
@@ -190,6 +176,7 @@ public class OrderManager {
         private final String shopName;
         private String address;
         private final String routeName;
+        // FIXED: Added missing fields
         private String contactNumber;
         private int routeId;
 
@@ -199,37 +186,24 @@ public class OrderManager {
             this.routeName = routeName;
         }
 
-        public String getContactNumber() {
-            return contactNumber;
-        }
-
-        public int getRouteId() {
-            return routeId;
-        }
-
         public int getId() { return id; }
         public String getShopName() { return shopName; }
         public String getAddress() { return address; }
+        public int getCustomerId() { return id; }
         public void setAddress(String address) { this.address = address; }
         public String getRouteName() { return routeName; }
+        public String getContactNumber() { return contactNumber; }
+        public int getRouteId() { return routeId; }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Customer customer = (Customer) o;
-            return id == customer.id;
-        }
+        // FIXED: Added missing setter methods
+        public void setContactNumber(String contactNumber) { this.contactNumber = contactNumber; }
+        public void setRouteId(int routeId) { this.routeId = routeId; }
 
-        @Override
-        public int hashCode() {
-            return Objects.hash(id);
-        }
 
         @NonNull
         @Override
         public String toString() {
-            return shopName;
+            return shopName; // Important for the Spinner
         }
     }
 

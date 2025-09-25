@@ -1,16 +1,12 @@
 package com.example.falconrepresentator.Models;
 
-/**
- * A simple model class to hold data for a customer that was created offline
- * and is waiting to be synced to the server.
- */
 public class PendingCustomer {
-    private final long localId;
-    private final String shopName;
-    private final String contactNumber;
-    private final String address;
-    private final int routeId;
-    private final int userId;
+    private long localId;
+    private String shopName;
+    private String contactNumber;
+    private String address;
+    private int routeId;
+    private int userId;
 
     public PendingCustomer(long localId, String shopName, String contactNumber, String address, int routeId, int userId) {
         this.localId = localId;

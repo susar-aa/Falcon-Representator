@@ -10,7 +10,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class SplashScreenActivity extends AppCompatActivity {
 
-    private static final String TAG = "SplashScreenActivity"; // Added TAG for logging
+    private static final String TAG = "SplashScreenActivity";
     private SyncManager syncManager;
     private TextView tvStatus;
     private ProgressBar progressBar;
@@ -31,64 +31,44 @@ public class SplashScreenActivity extends AppCompatActivity {
         syncManager.startSync(new SyncManager.SyncCallback() {
             @Override
             public void onSyncProgress(String message) {
-                // Update the status text view
-                tvStatus.setText(message);
-                Log.d(TAG, "Sync Progress: " + message); // Log progress
-
-                // Try to parse progress from the message
-                // This assumes messages like "Downloading product data (X/Y)"
-                if (message.contains("(") && message.contains("/") && message.contains(")")) {
-                    progressBar.setIndeterminate(false);
-                    try {
-                        String progressPart = message.substring(message.indexOf("(") + 1, message.indexOf(")"));
-                        String[] parts = progressPart.split("/");
-                        if (parts.length == 2) {
-                            int current = Integer.parseInt(parts[0].trim());
-                            int total = Integer.parseInt(parts[1].trim());
-                            progressBar.setMax(total);
-                            progressBar.setProgress(current);
-                        } else {
-                            progressBar.setIndeterminate(true); // Fallback if parsing fails
-                        }
-                    } catch (NumberFormatException | StringIndexOutOfBoundsException e) { // Catch both exceptions
-                        Log.e(TAG, "Error parsing progress message: " + e.getMessage());
-                        progressBar.setIndeterminate(true); // Fallback if parsing fails
-                    }
-                } else {
-                    progressBar.setIndeterminate(true); // Show indeterminate if no specific progress
-                }
+                runOnUiThread(() -> { // Ensure UI updates are on the main thread
+                    tvStatus.setText(message);
+                    Log.d(TAG, "Sync Progress: " + message);
+                    progressBar.setIndeterminate(true);
+                });
             }
 
             @Override
-            public void onSyncComplete(String message) { // Corrected signature: now accepts a String
+            public void onSyncComplete(String message) {
                 runOnUiThread(() -> {
                     tvStatus.setText("Sync Complete!");
-                    progressBar.setProgress(progressBar.getMax()); // Ensure progress bar is full
-                    Toast.makeText(SplashScreenActivity.this, message, Toast.LENGTH_LONG).show(); // Use the detailed message
-                    Log.d(TAG, "Full Sync Report: " + message); // Log the detailed message
+                    Toast.makeText(SplashScreenActivity.this, message, Toast.LENGTH_LONG).show();
+                    Log.d(TAG, "Full Sync Report: " + message);
                 });
-                goToMainActivity();
+                // Pass 'true' to indicate a fresh sync just completed
+                goToMainActivity(true);
             }
 
             @Override
             public void onSyncFailed(String error) {
-                runOnUiThread(() -> { // Ensure Toast and log are on main thread
+                runOnUiThread(() -> {
                     Toast.makeText(SplashScreenActivity.this, "Sync Failed: " + error, Toast.LENGTH_LONG).show();
                     Log.e(TAG, "Full Sync Failed: " + error);
-                    tvStatus.setText("Sync Failed!"); // Update status text
-                    progressBar.setIndeterminate(false); // Reset progress bar
-                    progressBar.setProgress(0); // Set to 0 on failure
+                    tvStatus.setText("Sync Failed!");
                 });
-                goToMainActivity(); // Go to main activity even if sync fails, using local data
+                // Pass 'false' as the sync was not successful
+                goToMainActivity(false);
             }
         });
     }
 
-    private void goToMainActivity() {
+    private void goToMainActivity(boolean justSynced) {
         new android.os.Handler().postDelayed(() -> {
             Intent intent = new Intent(SplashScreenActivity.this, MainActivity.class);
+            // Add a flag to tell MainActivity that a sync just happened
+            intent.putExtra(MainActivity.EXTRA_FRESH_SYNC, justSynced);
             startActivity(intent);
-            finish(); // Finish splash screen so it's not on the back stack
-        }, 1500); // 1.5-second delay
+            finish();
+        }, 1500); // 1.5-second delay to allow user to see "Sync Complete" message
     }
 }

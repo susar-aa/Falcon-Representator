@@ -77,7 +77,6 @@ public class UploadWorker extends Worker {
         int repId = sessionManager.getRepId();
         String currentDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
 
-        // NEW: Get selected route ID from session
         int routeId = sessionManager.getSelectedRouteId();
         String routeName = sessionManager.getSelectedRouteName();
 
@@ -86,7 +85,7 @@ public class UploadWorker extends Worker {
         try {
             JSONObject summaryJson = new JSONObject();
             summaryJson.put("rep_id", repId);
-            summaryJson.put("route_id", routeId); // NEW: Add route_id to payload
+            summaryJson.put("route_id", routeId);
             summaryJson.put("route_date", currentDate);
             summaryJson.put("meter_start", sessionManager.getStartMeter());
             summaryJson.put("meter_end", sessionManager.getEndMeter());
@@ -102,6 +101,9 @@ public class UploadWorker extends Worker {
                 billJson.put("rep_id", order.getRepId());
                 billJson.put("bill_date", order.getOrderDate());
                 billJson.put("total_amount", order.getTotalAmount());
+                // NEW: Add the bill discount percentage to the payload
+                billJson.put("bill_discount_percentage", order.getBillDiscountPercentage());
+
 
                 JSONArray itemsArray = new JSONArray();
                 for (DatabaseHelper.PendingOrderItem item : order.getItems()) {
@@ -109,6 +111,10 @@ public class UploadWorker extends Worker {
                     itemJson.put("variant_id", item.getVariantId());
                     itemJson.put("quantity", item.getQuantity());
                     itemJson.put("price_per_unit", item.getPricePerUnit());
+                    // NEW: Add custom price and item discount to the payload
+                    // Note: getCustomPrice() can be null, JSONObject handles this correctly
+                    itemJson.put("custom_price", item.getCustomPrice());
+                    itemJson.put("item_discount_percentage", item.getDiscountPercentage());
                     itemsArray.put(itemJson);
                 }
                 billJson.put("items", itemsArray);
@@ -155,7 +161,7 @@ public class UploadWorker extends Worker {
                 summaryIntent.putExtra(DailySummaryActivity.EXTRA_END_METER, sessionManager.getEndMeter());
                 summaryIntent.putExtra(DailySummaryActivity.EXTRA_TOTAL_SALES, totalSales);
                 summaryIntent.putExtra(DailySummaryActivity.EXTRA_BILL_COUNT, pendingOrders.size());
-                summaryIntent.putExtra(DailySummaryActivity.EXTRA_ROUTE_NAME, routeName); // NEW: Pass route name
+                summaryIntent.putExtra(DailySummaryActivity.EXTRA_ROUTE_NAME, routeName);
                 summaryIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
 
                 PendingIntent pendingIntent = PendingIntent.getActivity(context, 0, summaryIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -196,4 +202,3 @@ public class UploadWorker extends Worker {
         notificationManager.notify(notificationId, builder.build());
     }
 }
-

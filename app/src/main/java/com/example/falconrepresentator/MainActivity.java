@@ -3,6 +3,7 @@ package com.example.falconrepresentator;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
@@ -32,6 +33,7 @@ import com.example.falconrepresentator.Models.OrderManager;
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -42,12 +44,16 @@ import android.content.pm.PackageManager;
 
 public class MainActivity extends AppCompatActivity implements OrderManager.OnBillChangedListener {
 
+    // NEW: Public constant for the intent extra
+    public static final String EXTRA_FRESH_SYNC = "extra_fresh_sync";
+
     private SessionManager sessionManager;
     private TextView tvOfflineIndicator, tvLastSynced;
-    // MODIFIED: Added btnManageCustomers
     private Button btnStartDay, btnEndDay, btnViewCatalog, btnViewAllProducts, btnViewTodaysBills, btnUploadPendingBills, btnManageCustomers;
     private ExtendedFloatingActionButton fabGoToBill;
     private DatabaseHelper dbHelper;
+
+    private TextView tvUserFullName, tvUsername;
 
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
@@ -76,6 +82,9 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
         askNotificationPermission();
 
         OrderManager.getInstance().registerListener(this);
+
+        // NEW: Check for the fresh sync flag when the activity is created
+        handleFreshSync();
     }
 
     @Override
@@ -84,6 +93,7 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
         updateSyncStatusUI();
         updateButtonStates();
         updateFloatingBillButton();
+        updateUserDetailsUI();
         triggerPendingCustomerSync();
     }
 
@@ -108,8 +118,10 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
         btnViewTodaysBills = findViewById(R.id.btnViewTodaysBills);
         btnUploadPendingBills = findViewById(R.id.btnUploadPendingBills);
         fabGoToBill = findViewById(R.id.fabGoToBill);
-        // MODIFIED: Initialize the new button
         btnManageCustomers = findViewById(R.id.btnManageCustomers);
+
+        tvUserFullName = findViewById(R.id.tvUserFullName);
+        tvUsername = findViewById(R.id.tvUsername);
     }
 
     private void setupClickListeners() {
@@ -124,9 +136,29 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
             Toast.makeText(this, "Uploading pending bills in the background...", Toast.LENGTH_LONG).show();
             v.setVisibility(View.GONE);
         });
-        // MODIFIED: Add click listener for the new button
         btnManageCustomers.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, CustomerManagementActivity.class)));
     }
+
+    // NEW: This method checks the intent and shows a message if needed
+    private void handleFreshSync() {
+        boolean justSynced = getIntent().getBooleanExtra(EXTRA_FRESH_SYNC, false);
+        if (justSynced) {
+            Toast.makeText(this, "Data synced! Product images will now download in the background.", Toast.LENGTH_LONG).show();
+            // We can also trigger the worker here to ensure it starts immediately
+            startImageDownloadWorker();
+        }
+    }
+
+
+    private void updateUserDetailsUI() {
+        HashMap<String, String> userDetails = sessionManager.getUserDetails();
+        String fullName = userDetails.get(SessionManager.KEY_FULL_NAME);
+        String username = userDetails.get(SessionManager.KEY_USERNAME);
+
+        tvUserFullName.setText(fullName);
+        tvUsername.setText("Username: " + username);
+    }
+
 
     private void updateButtonStates() {
         boolean dayStarted = sessionManager.isDayStarted();
@@ -136,7 +168,7 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
         btnViewCatalog.setEnabled(true);
         btnViewAllProducts.setEnabled(true);
         btnViewTodaysBills.setEnabled(true);
-        btnManageCustomers.setEnabled(true); // MODIFIED: Enable the new button
+        btnManageCustomers.setEnabled(true);
 
         if (!dayStarted) {
             ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -163,7 +195,7 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
     private void updateSyncStatusUI() {
         if (isNetworkAvailable()) {
             tvOfflineIndicator.setVisibility(View.GONE);
-            startImageDownloadWorker();
+            // The worker will be triggered automatically or by the fresh sync handle
         } else {
             tvOfflineIndicator.setVisibility(View.VISIBLE);
         }
@@ -261,6 +293,7 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
                 int startMeter = Integer.parseInt(meterReadingStr);
                 sessionManager.startDay(startMeter);
                 updateButtonStates();
+                updateUserDetailsUI();
                 Toast.makeText(this, "Day started successfully!", Toast.LENGTH_SHORT).show();
             }
         });
@@ -341,6 +374,7 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
                 sessionManager.setEndMeter(endMeter);
                 sessionManager.endDay();
                 updateButtonStates();
+                updateUserDetailsUI();
                 startUploadWorker();
                 Toast.makeText(this, "Day ended. Uploading data in the background...", Toast.LENGTH_LONG).show();
             }
@@ -381,3 +415,4 @@ public class MainActivity extends AppCompatActivity implements OrderManager.OnBi
         );
     }
 }
+

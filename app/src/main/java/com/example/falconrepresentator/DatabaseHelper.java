@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import com.example.falconrepresentator.Models.CustomerListItem;
 import com.example.falconrepresentator.Models.MainCategory;
 import com.example.falconrepresentator.Models.OrderManager;
 import com.example.falconrepresentator.Models.PendingCustomer;
@@ -23,7 +24,6 @@ import java.util.Map;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "falcon_catalog.db";
-    // MODIFIED: Incremented version for new discount columns
     private static final int DATABASE_VERSION = 8;
     private static final String TAG = "DatabaseHelper";
 
@@ -32,19 +32,24 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         public final int variantId;
         public final int quantity;
         public final double pricePerUnit;
-        // MODIFIED: Add discount percentage for upload payload
+        // FIX: Add the customPrice field
+        public final Double customPrice;
         public final double discountPercentage;
 
-        public PendingOrderItem(int variantId, int quantity, double pricePerUnit, double discountPercentage) {
+
+        public PendingOrderItem(int variantId, int quantity, double pricePerUnit, Double customPrice, double discountPercentage) {
             this.variantId = variantId;
             this.quantity = quantity;
             this.pricePerUnit = pricePerUnit;
+            this.customPrice = customPrice;
             this.discountPercentage = discountPercentage;
         }
 
         public int getVariantId() { return variantId; }
         public int getQuantity() { return quantity; }
         public double getPricePerUnit() { return pricePerUnit; }
+        // FIX: Add the getter for customPrice
+        public Double getCustomPrice() { return customPrice; }
         public double getDiscountPercentage() { return discountPercentage; }
     }
 
@@ -54,7 +59,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         public final int repId;
         public final String orderDate;
         public final double totalAmount;
-        // MODIFIED: Bill discount is now a percentage
         public final double billDiscountPercentage;
         public final List<PendingOrderItem> items;
 
@@ -91,7 +95,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             return name;
         }
     }
-
 
     // Table and column constants...
     public static final String TABLE_PRODUCTS = "products";
@@ -144,13 +147,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_ORDER_BILL_DISCOUNT = "bill_discount";
     public static final String COLUMN_ORDER_SYNC_STATUS = "sync_status";
     public static final String TABLE_OFFLINE_ORDER_ITEMS = "offline_order_items";
-    public static final String COLUMN_ITEM_ID = "item_id"; // Primary key of this table
+    public static final String COLUMN_ITEM_ID = "item_id";
     public static final String COLUMN_ITEM_ORDER_ID = "order_id";
     public static final String COLUMN_ITEM_VARIANT_ID = "variant_id";
     public static final String COLUMN_ITEM_PRODUCT_NAME = "product_name";
     public static final String COLUMN_ITEM_QTY = "quantity";
-    public static final String COLUMN_ITEM_PRICE = "price_per_unit"; // This will store the ORIGINAL price
-    // NEW COLUMNS for discount logic
+    public static final String COLUMN_ITEM_PRICE = "price_per_unit";
     public static final String COLUMN_ITEM_CUSTOM_PRICE = "custom_price_per_unit";
     public static final String COLUMN_ITEM_DISCOUNT_PERCENTAGE = "discount_percentage";
 
@@ -161,7 +163,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_PC_ADDRESS = "address";
     public static final String COLUMN_PC_ROUTE_ID = "route_id";
     public static final String COLUMN_PC_USER_ID = "user_id";
-
 
     // --- Create Table Statements ---
     private static final String CREATE_TABLE_PRODUCTS =
@@ -241,9 +242,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     COLUMN_ITEM_VARIANT_ID + " INTEGER, " +
                     COLUMN_ITEM_PRODUCT_NAME + " TEXT, " +
                     COLUMN_ITEM_QTY + " INTEGER, " +
-                    COLUMN_ITEM_PRICE + " REAL, " + // Original price per unit
-                    // MODIFIED: Added new columns for discounts
-                    COLUMN_ITEM_CUSTOM_PRICE + " REAL, " + // Nullable
+                    COLUMN_ITEM_PRICE + " REAL, " +
+                    COLUMN_ITEM_CUSTOM_PRICE + " REAL, " +
                     COLUMN_ITEM_DISCOUNT_PERCENTAGE + " REAL NOT NULL DEFAULT 0" +
                     ");";
 
@@ -311,11 +311,37 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_CUST_CONTACT_NUMBER, contactNumber);
         values.put(COLUMN_CUST_ADDRESS, address);
         values.put(COLUMN_CUST_ROUTE_ID, routeId);
-        int rows = db.update(TABLE_CUSTOMERS, values, COLUMN_CUST_ID + "=?", new String[]{String.valueOf(customerId)});
-        return rows > 0;
+
+        int rowsAffected = 0;
+        try {
+            rowsAffected = db.update(TABLE_CUSTOMERS, values, COLUMN_CUST_ID + "=?", new String[]{String.valueOf(customerId)});
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating synced customer", e);
+        }
+        return rowsAffected > 0;
     }
 
-    // --- Methods for ImageDownloadWorker ---
+    public boolean deleteSyncedCustomer(long customerId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        int rowsAffected = 0;
+        try {
+            rowsAffected = db.delete(TABLE_CUSTOMERS, COLUMN_CUST_ID + "=?", new String[]{String.valueOf(customerId)});
+        } catch (Exception e) {
+            Log.e(TAG, "Error deleting synced customer", e);
+        }
+        return rowsAffected > 0;
+    }
+
+    public boolean deletePendingCustomer(long localId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        int rowsAffected = 0;
+        try {
+            rowsAffected = db.delete(TABLE_PENDING_CUSTOMERS, COLUMN_PC_LOCAL_ID + "=?", new String[]{String.valueOf(localId)});
+        } catch (Exception e) {
+            Log.e(TAG, "Error deleting pending customer", e);
+        }
+        return rowsAffected > 0;
+    }
 
     public List<Product> getProductsWithMissingImages() {
         List<Product> productList = new ArrayList<>();
@@ -610,7 +636,102 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
+    private List<OrderManager.Customer> getAllCustomersFull() {
+        List<OrderManager.Customer> customers = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = null;
+
+        String query = "SELECT " +
+                "c." + COLUMN_CUST_ID + ", " +
+                "c." + COLUMN_CUST_SHOP_NAME + ", " +
+                "c." + COLUMN_CUST_ADDRESS + ", " +
+                "c." + COLUMN_CUST_CONTACT_NUMBER + ", " +
+                "c." + COLUMN_CUST_ROUTE_ID + ", " +
+                "r." + COLUMN_ROUTE_NAME +
+                " FROM " + TABLE_CUSTOMERS + " c" +
+                " LEFT JOIN " + TABLE_ROUTES + " r ON c." + COLUMN_CUST_ROUTE_ID + " = r." + COLUMN_ROUTE_ID +
+                " ORDER BY c." + COLUMN_CUST_SHOP_NAME + " ASC";
+
+        try {
+            cursor = db.rawQuery(query, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_CUST_ID));
+                    String name = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CUST_SHOP_NAME));
+                    String address = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CUST_ADDRESS));
+                    String contact = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CUST_CONTACT_NUMBER));
+                    int routeId = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_CUST_ROUTE_ID));
+                    String routeName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROUTE_NAME));
+
+                    OrderManager.Customer customer = new OrderManager.Customer(id, name, routeName);
+                    customer.setAddress(address);
+                    customer.setContactNumber(contact);
+                    customer.setRouteId(routeId);
+                    customers.add(customer);
+                } while (cursor.moveToNext());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error fetching full customer list: " + e.getMessage());
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        return customers;
+    }
+
+    public List<CustomerListItem> getAllCustomersForManagement() {
+        List<CustomerListItem> combinedList = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        // 1. Create a map of route IDs to route names for efficient lookup.
+        Map<Integer, String> routeMap = new HashMap<>();
+        List<Route> routes = getAllRoutes();
+        for (Route route : routes) {
+            routeMap.put(route.id, route.name);
+        }
+
+        // 2. Fetch all pending customers and add them to the list first.
+        List<PendingCustomer> pendingCustomers = getAllPendingCustomers();
+        for (PendingCustomer pc : pendingCustomers) {
+            String routeName = routeMap.getOrDefault(pc.getRouteId(), "N/A");
+            combinedList.add(new CustomerListItem(pc, routeName));
+        }
+
+        // 3. Fetch all synced customers.
+        List<OrderManager.Customer> syncedCustomers = getAllCustomersFull();
+        for (OrderManager.Customer sc : syncedCustomers) {
+            combinedList.add(new CustomerListItem(sc));
+        }
+
+        return combinedList;
+    }
+
     // --- Methods for Billing Workflow ---
+    public List<OrderManager.Customer> getAllCustomersForBilling() {
+        List<OrderManager.Customer> combinedList = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        // 1. Fetch all synced customers from the main table
+        List<OrderManager.Customer> syncedCustomers = getAllCustomersForSpinner();
+        combinedList.addAll(syncedCustomers);
+
+        // 2. Fetch all pending customers
+        List<PendingCustomer> pendingCustomers = getAllPendingCustomers();
+        for (PendingCustomer pc : pendingCustomers) {
+            // Create a temporary Customer object for the pending one.
+            // Use a negative ID to distinguish it and prevent conflicts.
+            OrderManager.Customer tempCustomer = new OrderManager.Customer(
+                    (int) -pc.getLocalId(), // Crucial: use negative local ID
+                    pc.getShopName() + " (Pending)",
+                    "" // Route name can be fetched if needed, but keeping it simple
+            );
+            tempCustomer.setAddress(pc.getAddress());
+            combinedList.add(tempCustomer);
+        }
+
+        return combinedList;
+    }
+
+
     public List<OrderManager.Customer> getAllCustomersForSpinner() {
         List<OrderManager.Customer> customers = new ArrayList<>();
         SQLiteDatabase db = this.getReadableDatabase();
@@ -639,7 +760,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return customers;
     }
 
-    // MODIFIED: Signature and logic updated to handle percentage discount
     public long saveOrder(int customerId, int repId, String currentDate, double total, double billDiscountPercentage, List<OrderManager.OrderItem> items) {
         SQLiteDatabase db = this.getWritableDatabase();
         db.beginTransaction();
@@ -650,7 +770,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             orderValues.put(COLUMN_ORDER_REP_ID, repId);
             orderValues.put(COLUMN_ORDER_DATE, currentDate);
             orderValues.put(COLUMN_ORDER_TOTAL, total);
-            // MODIFIED: The bill_discount column now stores the percentage
             orderValues.put(COLUMN_ORDER_BILL_DISCOUNT, billDiscountPercentage);
             orderValues.put(COLUMN_ORDER_SYNC_STATUS, "pending");
 
@@ -663,9 +782,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     itemValues.put(COLUMN_ITEM_VARIANT_ID, item.getVariant().getVariantId());
                     itemValues.put(COLUMN_ITEM_PRODUCT_NAME, item.getVariant().getVariantName());
                     itemValues.put(COLUMN_ITEM_QTY, item.getQuantity());
-                    // MODIFIED: Save all price and discount components
-                    itemValues.put(COLUMN_ITEM_PRICE, item.getVariant().getPrice()); // Original price
-                    itemValues.put(COLUMN_ITEM_CUSTOM_PRICE, item.getCustomPrice()); // Custom price (can be null)
+                    itemValues.put(COLUMN_ITEM_PRICE, item.getVariant().getPrice());
+                    itemValues.put(COLUMN_ITEM_CUSTOM_PRICE, item.getCustomPrice());
                     itemValues.put(COLUMN_ITEM_DISCOUNT_PERCENTAGE, item.getDiscountPercentage());
                     db.insert(TABLE_OFFLINE_ORDER_ITEMS, null, itemValues);
                 }
@@ -702,7 +820,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return orderDetails;
     }
 
-    // MODIFIED: Reconstruct OrderItems with full discount/price details from DB
     private List<OrderManager.OrderItem> getOrderItemsByOrderId(SQLiteDatabase db, long orderId) {
         List<OrderManager.OrderItem> items = new ArrayList<>();
         Cursor itemCursor = null;
@@ -716,14 +833,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     double originalPrice = itemCursor.getDouble(itemCursor.getColumnIndexOrThrow(COLUMN_ITEM_PRICE));
                     double discountPercentage = itemCursor.getDouble(itemCursor.getColumnIndexOrThrow(COLUMN_ITEM_DISCOUNT_PERCENTAGE));
 
-                    // Check for custom price, which can be null
                     Double customPrice = null;
                     int customPriceColumnIndex = itemCursor.getColumnIndex(COLUMN_ITEM_CUSTOM_PRICE);
                     if (!itemCursor.isNull(customPriceColumnIndex)) {
                         customPrice = itemCursor.getDouble(customPriceColumnIndex);
                     }
 
-                    // Recreate the objects
                     ProductVariant variant = new ProductVariant(variantId, 0, productName, "", originalPrice, "");
                     OrderManager.OrderItem orderItem = new OrderManager.OrderItem(variant, quantity);
                     orderItem.setCustomPrice(customPrice);
@@ -754,9 +869,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
                 customer = new OrderManager.Customer(customerId, name, routeName);
                 customer.setAddress(address);
+            } else {
+                // NEW: If customer not found, create a placeholder to prevent crashes
+                customer = new OrderManager.Customer(customerId, "Customer Not Found", "N/A");
+                customer.setAddress("This customer may have been deleted.");
             }
         } finally {
-            if (custCursor != null) custCursor.close();
+            if (custCursor != null) {
+                custCursor.close();
+            }
         }
         return customer;
     }
@@ -824,7 +945,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     int quantity = itemCursor.getInt(itemCursor.getColumnIndexOrThrow(COLUMN_ITEM_QTY));
                     double price = itemCursor.getDouble(itemCursor.getColumnIndexOrThrow(COLUMN_ITEM_PRICE));
                     double discountPercentage = itemCursor.getDouble(itemCursor.getColumnIndexOrThrow(COLUMN_ITEM_DISCOUNT_PERCENTAGE));
-                    items.add(new PendingOrderItem(variantId, quantity, price, discountPercentage));
+
+                    // FIX: Read custom_price from the cursor
+                    Double customPrice = null;
+                    int customPriceColIndex = itemCursor.getColumnIndex(COLUMN_ITEM_CUSTOM_PRICE);
+                    if (customPriceColIndex != -1 && !itemCursor.isNull(customPriceColIndex)) {
+                        customPrice = itemCursor.getDouble(customPriceColIndex);
+                    }
+
+                    // FIX: Pass custom_price to the constructor
+                    items.add(new PendingOrderItem(variantId, quantity, price, customPrice, discountPercentage));
                 } while (itemCursor.moveToNext());
             }
         } finally {

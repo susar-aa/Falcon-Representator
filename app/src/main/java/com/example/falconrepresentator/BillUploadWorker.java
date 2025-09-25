@@ -31,16 +31,17 @@ public class BillUploadWorker extends Worker {
     private final NotificationManager notificationManager;
 
     public static final String NOTIFICATION_CHANNEL_ID = "sync_channel";
-    private static final int BILL_UPLOAD_ID = 7;
+    private static final int BILL_UPLOAD_PROGRESS_ID = 7;
+    private static final int BILL_UPLOAD_FINAL_ID = 8;
+
 
     public BillUploadWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
         super(context, workerParams);
         this.context = context;
         this.notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        createNotificationChannel(); // Fixed: Call the missing method
+        createNotificationChannel();
     }
 
-    // Fixed: Added the missing createNotificationChannel method
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -68,13 +69,15 @@ public class BillUploadWorker extends Worker {
         try {
             JSONArray billsArray = new JSONArray();
             for (DatabaseHelper.PendingOrder order : pendingOrders) {
-                // Fixed: Added the missing logic to create the billJson object
                 JSONObject billJson = new JSONObject();
                 billJson.put("local_order_id", order.getOrderId());
                 billJson.put("customer_id", order.getCustomerId());
                 billJson.put("rep_id", order.getRepId());
                 billJson.put("bill_date", order.getOrderDate());
                 billJson.put("total_amount", order.getTotalAmount());
+                // NEW: Add the bill discount percentage to the payload
+                billJson.put("bill_discount_percentage", order.getBillDiscountPercentage());
+
 
                 JSONArray itemsArray = new JSONArray();
                 for (DatabaseHelper.PendingOrderItem item : order.getItems()) {
@@ -82,6 +85,9 @@ public class BillUploadWorker extends Worker {
                     itemJson.put("variant_id", item.getVariantId());
                     itemJson.put("quantity", item.getQuantity());
                     itemJson.put("price_per_unit", item.getPricePerUnit());
+                    // NEW: Add custom price and item discount to the payload
+                    itemJson.put("custom_price", item.getCustomPrice());
+                    itemJson.put("item_discount_percentage", item.getDiscountPercentage());
                     itemsArray.put(itemJson);
                 }
                 billJson.put("items", itemsArray);
@@ -93,7 +99,7 @@ public class BillUploadWorker extends Worker {
             return Result.failure();
         }
 
-        showNotification("Uploading Pending Bills...", "Sending " + pendingOrders.size() + " bill(s) to the server.", BILL_UPLOAD_ID, true);
+        showNotification("Uploading Pending Bills...", "Sending " + pendingOrders.size() + " bill(s) to the server.", BILL_UPLOAD_PROGRESS_ID, true);
 
         RequestQueue requestQueue = Volley.newRequestQueue(context);
         String url = "https://representator.falconstationery.com/Api/upload_bills_only.php";
@@ -116,21 +122,21 @@ public class BillUploadWorker extends Worker {
                         dbHelper.deleteSyncedOrdersByIds(syncedOrderIds);
                     }
                 }
-                showNotification("Upload Complete", pendingOrders.size() + " pending bill(s) have been successfully synced.", BILL_UPLOAD_ID, false);
+                showNotification("Upload Complete", pendingOrders.size() + " pending bill(s) have been successfully synced.", BILL_UPLOAD_FINAL_ID, false);
                 return Result.success();
             } else {
-                showNotification("Upload Failed", "A server error occurred. Will retry.", BILL_UPLOAD_ID, false);
+                showNotification("Upload Failed", "A server error occurred. Will retry.", BILL_UPLOAD_FINAL_ID, false);
                 return Result.retry();
             }
         } catch (Exception e) {
             Log.e(TAG, "Exception during bills-only upload.", e);
+            showNotification("Upload Failed", "Could not connect to the server. Will retry.", BILL_UPLOAD_FINAL_ID, false);
             return Result.retry();
         } finally {
-            notificationManager.cancel(BILL_UPLOAD_ID);
+            notificationManager.cancel(BILL_UPLOAD_PROGRESS_ID);
         }
     }
 
-    // Fixed: Added the missing showNotification helper method
     private void showNotification(String title, String content, int notificationId, boolean isOngoing) {
         Notification notification = new NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(title)
@@ -142,4 +148,3 @@ public class BillUploadWorker extends Worker {
         notificationManager.notify(notificationId, notification);
     }
 }
-

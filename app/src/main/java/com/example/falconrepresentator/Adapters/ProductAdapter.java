@@ -11,6 +11,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -62,7 +63,36 @@ public class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ViewHold
         Product product = products.get(position);
 
         holder.tvProductName.setText(product.getName());
-        holder.tvProductPrice.setText(String.format(Locale.getDefault(), "Rs. %.2f", product.getPrice()));
+
+        // --- NEW VARIANT DISPLAY LOGIC ---
+        boolean hasVariants = product.getVariants() != null && !product.getVariants().isEmpty();
+
+        if (hasVariants) {
+            holder.tvProductPrice.setVisibility(View.GONE);
+            holder.variantsContainer.setVisibility(View.VISIBLE);
+            holder.variantsContainer.removeAllViews();
+
+            // Inflate a dedicated layout for each variant for better formatting
+            LayoutInflater inflater = LayoutInflater.from(context);
+            for (ProductVariant variant : product.getVariants()) {
+                View variantView = inflater.inflate(R.layout.list_item_product_variant_detail, holder.variantsContainer, false);
+
+                TextView variantName = variantView.findViewById(R.id.tv_variant_name_detail);
+                TextView variantPrice = variantView.findViewById(R.id.tv_variant_price_detail);
+
+                variantName.setText(variant.getVariantName());
+                variantPrice.setText(String.format(Locale.getDefault(), "Rs. %.2f", variant.getPrice()));
+
+                holder.variantsContainer.addView(variantView);
+            }
+        } else {
+            // If no variants, show the main price and hide the variants container
+            holder.tvProductPrice.setVisibility(View.VISIBLE);
+            holder.variantsContainer.setVisibility(View.GONE);
+            holder.tvProductPrice.setText(String.format(Locale.getDefault(), "Rs. %.2f", product.getPrice()));
+        }
+        // --- END OF NEW LOGIC ---
+
 
         RequestBuilder<Drawable> requestBuilder;
         String localPath = product.getLocalPath();
@@ -90,7 +120,6 @@ public class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ViewHold
         });
 
         holder.btnAddToBill.setOnClickListener(v -> {
-            boolean hasVariants = product.getVariants() != null && !product.getVariants().isEmpty();
             if (hasVariants) {
                 showVariantSelectionDialog(product);
             } else {
@@ -218,6 +247,8 @@ public class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ViewHold
         TextView tvProductName;
         TextView tvProductPrice;
         Button btnAddToBill;
+        // NEW: Add a reference to the variants container
+        LinearLayout variantsContainer;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -225,6 +256,8 @@ public class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ViewHold
             tvProductName = itemView.findViewById(R.id.tvProductName);
             tvProductPrice = itemView.findViewById(R.id.tvProductPrice);
             btnAddToBill = itemView.findViewById(R.id.btnAddToBill);
+            // NEW: Initialize the variants container
+            variantsContainer = itemView.findViewById(R.id.variants_container);
         }
     }
 }

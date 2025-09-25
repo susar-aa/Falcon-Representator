@@ -55,7 +55,13 @@ public class TodaysBillsAdapter extends RecyclerView.Adapter<TodaysBillsAdapter.
         }
 
         void bind(final OrderManager.OrderDetails bill) {
-            tvCustomerName.setText(bill.getCustomer().getShopName());
+            // CRASH FIX: Check if the customer object is null before trying to access its properties.
+            if (bill.getCustomer() != null) {
+                tvCustomerName.setText(bill.getCustomer().getShopName());
+            } else {
+                tvCustomerName.setText("Unknown Customer"); // Provide a safe fallback text
+            }
+
             tvBillTotal.setText(String.format(Locale.getDefault(), "Total: Rs. %.2f", bill.getTotalAmount()));
             tvBillDate.setText(bill.getOrderDate());
 

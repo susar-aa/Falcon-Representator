@@ -68,7 +68,6 @@ public class LoginActivity extends AppCompatActivity {
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
-
     private void performLogin(String username, String password) {
         // NEW: Check for network before doing anything else.
         if (!isNetworkAvailable()) {
